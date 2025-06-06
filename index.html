@@ -13,6 +13,9 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/pdfjs-dist@3.9.179/build/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.9.179/build/pdf.worker.min.js';
+  </script>
   <script src="./Leaflet.ImageOverlay.Rotated.js"></script>
 </head>
 <body>
@@ -161,11 +164,47 @@
     // marker2.on('drag dragend', repositionImage);
     // marker3.on('drag dragend', repositionImage);
 
+    // if (navigator.geolocation) {
+    //   navigator.geolocation.watchPosition(function(position) {
+    //     const lat = position.coords.latitude;
+    //     const lng = position.coords.longitude;
+    //     L.circleMarker([lat, lng], {
+    //       radius: 8,
+    //       fillColor: 'blue',
+    //       color: 'white',
+    //       weight: 2,
+    //       opacity: 1,
+    //       fillOpacity: 0.8
+    //     }).addTo(map);
+    //   });
+    // }
+
     if (navigator.geolocation) {
-      navigator.geolocation.watchPosition(function(position) {
+      console.log("Geolocation is supported by this browser.");
+      
+      // Options for geolocation
+      const options = {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0
+      };
+
+      // Success callback
+      function success(position) {
+        console.log("Position received:", position);
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
-        L.circleMarker([lat, lng], {
+        console.log(`Location: ${lat}, ${lng}`);
+        
+        // Remove existing markers (optional - remove this if you want to keep track of movement)
+        map.eachLayer((layer) => {
+          if (layer instanceof L.CircleMarker) {
+            map.removeLayer(layer);
+          }
+        });
+
+        // Add new marker
+        const locationMarker = L.circleMarker([lat, lng], {
           radius: 8,
           fillColor: 'blue',
           color: 'white',
@@ -173,190 +212,36 @@
           opacity: 1,
           fillOpacity: 0.8
         }).addTo(map);
-      });
+
+        // Center map on location (optional - remove if you don't want the map to move)
+        // map.setView([lat, lng]);
+      }
+
+      // Error callback
+      function error(err) {
+        console.warn(`Geolocation ERROR(${err.code}): ${err.message}`);
+        switch(err.code) {
+          case err.PERMISSION_DENIED:
+            console.log("User denied the request for Geolocation.");
+            break;
+          case err.POSITION_UNAVAILABLE:
+            console.log("Location information is unavailable.");
+            break;
+          case err.TIMEOUT:
+            console.log("The request to get user location timed out.");
+            break;
+          case err.UNKNOWN_ERROR:
+            console.log("An unknown error occurred.");
+            break;
+        }
+      }
+
+      // Start watching position
+      const watchId = navigator.geolocation.watchPosition(success, error, options);
+    } else {
+      console.log("Geolocation is not supported by this browser.");
     }
-
-
-
-    // var map = new L.Map('map');
-
-	// 	var positron = L.tileLayer('http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
-	// 		attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="http://cartodb.com/attributions">CartoDB</a>',
-	// 		maxNativeZoom: 18,
-	// 		maxZoom:24
-	// 	}).addTo(map);
-    
-	// 	var point1 = L.latLng(40.52256691873593, -3.7743186950683594),
-	// 	    point2 = L.latLng(40.5210255066156, -3.7734764814376835),
-	// 	    point3 = L.latLng(40.52180437272552, -3.7768453359603886);
-		
-	// 	var marker1 = L.marker(point1, {draggable: true} ).addTo(map),
-	// 	    marker2 = L.marker(point2, {draggable: true} ).addTo(map),
-	// 	    marker3 = L.marker(point3, {draggable: true} ).addTo(map);
-		    
-		
-	// 	var	bounds = new L.LatLngBounds(point1, point2).extend(point3);
-
-	// 	map.fitBounds(bounds);
-
-	// 	var overlay = L.imageOverlay.rotated("./palacio-de-el-pardo-821175.jpg", point1, point2, point3, {
-	// 		opacity: 0.4,
-	// 		interactive: true,
-	// 		attribution: "Historical building plan &copy; <a href='http://www.ign.es'>Instituto Geográfico Nacional de España</a>"
-	// 	});
-		
-// 		function repositionImage() {
-// 			overlay.reposition(marker1.getLatLng(), marker2.getLatLng(), marker3.getLatLng());
-// 		};
-		
-// 		marker1.on('drag dragend', repositionImage);
-// 		marker2.on('drag dragend', repositionImage);
-// 		marker3.on('drag dragend', repositionImage);
-		
-// // 		var c = overlay.getCanvas2DContext()
-		
-// 		map.addLayer(overlay);
-
-// 		overlay.on('dblclick',function (e) {
-// 			console.log('Double click on image.');
-// 			e.stop();
-// 		});
-
-// 		overlay.on('click',function (e) {
-// 			console.log('Click on image.');
-// 		});
-
-// 		function setOverlayOpacity(opacity) {
-// 			overlay.setOpacity(opacity);
-// 		}
   </script>
 </body>
 </html>
 
-      //     fillOpacity: 0.8
-      //   }).addTo(map);
-      // });
-    // }
-
-
-
-    // var map = new L.Map('map');
-
-	// 	var positron = L.tileLayer('http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
-	// 		attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="http://cartodb.com/attributions">CartoDB</a>',
-	// 		maxNativeZoom: 18,
-	// 		maxZoom:24
-	// 	}).addTo(map);
-    
-	// 	var point1 = L.latLng(40.52256691873593, -3.7743186950683594),
-	// 	    point2 = L.latLng(40.5210255066156, -3.7734764814376835),
-	// 	    point3 = L.latLng(40.52180437272552, -3.7768453359603886);
-		
-	// 	var marker1 = L.marker(point1, {draggable: true} ).addTo(map),
-	// 	    marker2 = L.marker(point2, {draggable: true} ).addTo(map),
-	// 	    marker3 = L.marker(point3, {draggable: true} ).addTo(map);
-		    
-		
-	// 	var	bounds = new L.LatLngBounds(point1, point2).extend(point3);
-
-	// 	map.fitBounds(bounds);
-
-	// 	var overlay = L.imageOverlay.rotated("./palacio-de-el-pardo-821175.jpg", point1, point2, point3, {
-	// 		opacity: 0.4,
-	// 		interactive: true,
-	// 		attribution: "Historical building plan &copy; <a href='http://www.ign.es'>Instituto Geográfico Nacional de España</a>"
-	// 	});
-		
-// 		function repositionImage() {
-// 			overlay.reposition(marker1.getLatLng(), marker2.getLatLng(), marker3.getLatLng());
-// 		};
-		
-// 		marker1.on('drag dragend', repositionImage);
-// 		marker2.on('drag dragend', repositionImage);
-// 		marker3.on('drag dragend', repositionImage);
-		
-// // 		var c = overlay.getCanvas2DContext()
-		
-// 		map.addLayer(overlay);
-
-// 		overlay.on('dblclick',function (e) {
-// 			console.log('Double click on image.');
-// 			e.stop();
-// 		});
-
-// 		overlay.on('click',function (e) {
-// 			console.log('Click on image.');
-// 		});
-
-// 		function setOverlayOpacity(opacity) {
-// 			overlay.setOpacity(opacity);
-// 		}
-  </script>
-</body>
-</html>
-
-  </script>
-</body>
-</html>
-
-      //     fillOpacity: 0.8
-      //   }).addTo(map);
-      // });
-    // }
-
-
-
-    // var map = new L.Map('map');
-
-	// 	var positron = L.tileLayer('http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
-	// 		attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="http://cartodb.com/attributions">CartoDB</a>',
-	// 		maxNativeZoom: 18,
-	// 		maxZoom:24
-	// 	}).addTo(map);
-    
-	// 	var point1 = L.latLng(40.52256691873593, -3.7743186950683594),
-	// 	    point2 = L.latLng(40.5210255066156, -3.7734764814376835),
-	// 	    point3 = L.latLng(40.52180437272552, -3.7768453359603886);
-		
-	// 	var marker1 = L.marker(point1, {draggable: true} ).addTo(map),
-	// 	    marker2 = L.marker(point2, {draggable: true} ).addTo(map),
-	// 	    marker3 = L.marker(point3, {draggable: true} ).addTo(map);
-		    
-		
-	// 	var	bounds = new L.LatLngBounds(point1, point2).extend(point3);
-
-	// 	map.fitBounds(bounds);
-
-	// 	var overlay = L.imageOverlay.rotated("./palacio-de-el-pardo-821175.jpg", point1, point2, point3, {
-	// 		opacity: 0.4,
-	// 		interactive: true,
-	// 		attribution: "Historical building plan &copy; <a href='http://www.ign.es'>Instituto Geográfico Nacional de España</a>"
-	// 	});
-		
-// 		function repositionImage() {
-// 			overlay.reposition(marker1.getLatLng(), marker2.getLatLng(), marker3.getLatLng());
-// 		};
-		
-// 		marker1.on('drag dragend', repositionImage);
-// 		marker2.on('drag dragend', repositionImage);
-// 		marker3.on('drag dragend', repositionImage);
-		
-// // 		var c = overlay.getCanvas2DContext()
-		
-// 		map.addLayer(overlay);
-
-// 		overlay.on('dblclick',function (e) {
-// 			console.log('Double click on image.');
-// 			e.stop();
-// 		});
-
-// 		overlay.on('click',function (e) {
-// 			console.log('Click on image.');
-// 		});
-
-// 		function setOverlayOpacity(opacity) {
-// 			overlay.setOpacity(opacity);
-// 		}
-  </script>
-</body>
-</html>
