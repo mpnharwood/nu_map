@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PDF Map Viewer with Georeferenced Overlay</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    html, body, #map {
+      height: 100%;
+      margin: 0;
+    }
+  </style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/pdfjs-dist@3.9.179/build/pdf.min.js"></script>
+  <script src="./Leaflet.ImageOverlay.Rotated.js"></script>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    // Earth's radius in km
+    const R = 6371;
+
+    // Converts degrees to radians
+    function toRad(degrees) {
+    return degrees * Math.PI / 180;
+    }
+
+    // Converts radians to degrees
+    function toDeg(radians) {
+    return radians * 180 / Math.PI;
+    }
+
+    function destinationPoint(lat, lon, bearingDeg, distanceKm) {
+        const δ = distanceKm / R; // angular distance
+        const θ = toRad(bearingDeg);
+
+        const φ1 = toRad(lat);
+        const λ1 = toRad(lon);
+
+        const φ2 = Math.asin(Math.sin(φ1) * Math.cos(δ) +
+                            Math.cos(φ1) * Math.sin(δ) * Math.cos(θ));
+
+        const λ2 = λ1 + Math.atan2(Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
+                                    Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2));
+
+        return [toDeg(φ2), toDeg(λ2)];
+    }
+
+    const map = L.map('map', {
+      // Center of the map
+      center: [41.50873990185675, -70.70950334193338],
+      zoom: 15,
+      // Restrict the map bounds
+      maxBounds: L.latLngBounds(
+        L.latLng(41.40, -70.85), // Southwest corner
+        L.latLng(41.55, -70.65)  // Northeast corner
+      ),
+      minZoom: 14,
+      maxZoom: 18,
+    }).setView([41.50873990185675, -70.70950334193338], 15);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a ref="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    
+    // for debugging drawing lines across the image to line up lat/long
+    function addVerticalLineToMap(long) {
+      var max_y = 41.52;
+      var min_y = 41.42;
+      var point_a = new L.LatLng(min_y, long);
+      var point_b = new L.LatLng(max_y, long);
+      var firstpolyline = new L.Polyline([point_a, point_b], {
+          color: 'red',
+          weight: 2,
+          opacity: 0.5,
+          smoothFactor: 1
+      });
+      firstpolyline.addTo(map);
+    }
+    // addVerticalLineToMap(-70 - (47 / 60) - (30 / 3600));
+    // addVerticalLineToMap(-70 - (45 / 60) - (0 / 3600));
+    // addVerticalLineToMap(-70 - (42 / 60) - (30 / 3600));
+    // addVerticalLineToMap(-70 - (40 / 60) - (0 / 3600));
+
+    function addHorizontalLineToMap(lat) {
+      var max_x = -70.88;
+      var min_x = -70.65;
+      var point_a = new L.LatLng(lat, min_x);
+      var point_b = new L.LatLng(lat, max_x);
+      var firstpolyline = new L.Polyline([point_a, point_b], {
+          color: 'red',
+          weight: 2,
+          opacity: 0.5,
+          smoothFactor: 1
+      });
+      firstpolyline.addTo(map);
+    }
+    // addHorizontalLineToMap(41 + (27/60) + (30/3600))
+    // addHorizontalLineToMap(41 + (30/60) + (0/3600))
+    
+    function addPdfOverlay(pdfUrl, topLeft, widthKm, heightKm, rotationDeg, opacity = 1.0) {
+      const topRight = destinationPoint(topLeft[0], topLeft[1], rotationDeg, widthKm);
+      const bottomLeft = destinationPoint(topLeft[0], topLeft[1], rotationDeg + 90, heightKm);
+
+      const ptTopLeft = L.latLng(topLeft[0], topLeft[1]),
+            ptTopRight = L.latLng(topRight[0], topRight[1]),
+            ptBottomLeft = L.latLng(bottomLeft[0], bottomLeft[1]);
+
+      pdfjsLib.getDocument(pdfUrl).promise.then(pdfDoc =>
+        pdfDoc.getPage(1)
+      ).then(page => {
+        const scale = 5;
+        const viewport = page.getViewport({ scale: scale });
+
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        const renderContext = { canvasContext: context, viewport: viewport };
+
+        return page.render(renderContext).promise.then(() => {
+          const image = canvas.toDataURL();
+          const overlay = L.imageOverlay.rotated(image, ptTopLeft, ptTopRight, ptBottomLeft, {
+            opacity: opacity,
+            interactive: true
+          });
+          overlay.addTo(map);
+        });
+      });
+    }
+    
+    const topLeft = [41.4623, -70.8283]; // [lat, lon]
+    const widthKm = 8.2;   // East-West distance
+    const heightKm = widthKm * (19.57 / 40.35); // North-South distance
+    const rotationDeg = 45 + 9.1; //+ (15 + 35 / 60);
+
+    // const topRight = destinationPoint(topLeft[0], topLeft[1], rotationDeg, widthKm);
+    // const bottomLeft = destinationPoint(topLeft[0], topLeft[1], rotationDeg + 90, heightKm);
+
+    // var point_top_left = L.latLng(topLeft[0], topLeft[1]),
+    //     point_top_right = L.latLng(topRight[0], topRight[1]),
+    //     point_bottom_left = L.latLng(bottomLeft[0], bottomLeft[1]);
+    var opacity = 1.0
+    addPdfOverlay('./naushon_map_cropped-1.pdf', topLeft, widthKm, heightKm, rotationDeg, opacity)
+    //var	bounds = new L.LatLngBounds(point_top_left, point_top_right).extend(point_bottom_left);
+    //map.fitBounds(bounds);
+
+    const topLeft2 = [41.4998, -70.7588]; // [lat, lon]
+    const widthKm2 = 8.2;   // East-West distance
+    const heightKm2 = widthKm2 * (19.57 / 40.35); // North-South distance
+    const rotationDeg2 = 45 + 9.2; //+ (15 + 35 / 60);
+    addPdfOverlay('./naushon_map_cropped-2.pdf', topLeft2, widthKm2, heightKm2, rotationDeg2, opacity)
+
+    // function repositionImage() {
+    //     transformedOverlay.reposition(marker1.getLatLng(), marker2.getLatLng(), marker3.getLatLng());
+    // };
+
+    // marker1.on('drag dragend', repositionImage);
+    // marker2.on('drag dragend', repositionImage);
+    // marker3.on('drag dragend', repositionImage);
+
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition(function(position) {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        L.circleMarker([lat, lng], {
+          radius: 8,
+          fillColor: 'blue',
+          color: 'white',
+          weight: 2,
+          opacity: 1,
+          fillOpacity: 0.8
+        }).addTo(map);
+      });
+    }
+
+
+
+    // var map = new L.Map('map');
+
+	// 	var positron = L.tileLayer('http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+	// 		attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="http://cartodb.com/attributions">CartoDB</a>',
+	// 		maxNativeZoom: 18,
+	// 		maxZoom:24
+	// 	}).addTo(map);
+    
+	// 	var point1 = L.latLng(40.52256691873593, -3.7743186950683594),
+	// 	    point2 = L.latLng(40.5210255066156, -3.7734764814376835),
+	// 	    point3 = L.latLng(40.52180437272552, -3.7768453359603886);
+		
+	// 	var marker1 = L.marker(point1, {draggable: true} ).addTo(map),
+	// 	    marker2 = L.marker(point2, {draggable: true} ).addTo(map),
+	// 	    marker3 = L.marker(point3, {draggable: true} ).addTo(map);
+		    
+		
+	// 	var	bounds = new L.LatLngBounds(point1, point2).extend(point3);
+
+	// 	map.fitBounds(bounds);
+
+	// 	var overlay = L.imageOverlay.rotated("./palacio-de-el-pardo-821175.jpg", point1, point2, point3, {
+	// 		opacity: 0.4,
+	// 		interactive: true,
+	// 		attribution: "Historical building plan &copy; <a href='http://www.ign.es'>Instituto Geográfico Nacional de España</a>"
+	// 	});
+		
+// 		function repositionImage() {
+// 			overlay.reposition(marker1.getLatLng(), marker2.getLatLng(), marker3.getLatLng());
+// 		};
+		
+// 		marker1.on('drag dragend', repositionImage);
+// 		marker2.on('drag dragend', repositionImage);
+// 		marker3.on('drag dragend', repositionImage);
+		
+// // 		var c = overlay.getCanvas2DContext()
+		
+// 		map.addLayer(overlay);
+
+// 		overlay.on('dblclick',function (e) {
+// 			console.log('Double click on image.');
+// 			e.stop();
+// 		});
+
+// 		overlay.on('click',function (e) {
+// 			console.log('Click on image.');
+// 		});
+
+// 		function setOverlayOpacity(opacity) {
+// 			overlay.setOpacity(opacity);
+// 		}
+  </script>
+</body>
+</html>
+
+      //     fillOpacity: 0.8
+      //   }).addTo(map);
+      // });
+    // }
+
+
+
+    // var map = new L.Map('map');
+
+	// 	var positron = L.tileLayer('http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+	// 		attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="http://cartodb.com/attributions">CartoDB</a>',
+	// 		maxNativeZoom: 18,
+	// 		maxZoom:24
+	// 	}).addTo(map);
+    
+	// 	var point1 = L.latLng(40.52256691873593, -3.7743186950683594),
+	// 	    point2 = L.latLng(40.5210255066156, -3.7734764814376835),
+	// 	    point3 = L.latLng(40.52180437272552, -3.7768453359603886);
+		
+	// 	var marker1 = L.marker(point1, {draggable: true} ).addTo(map),
+	// 	    marker2 = L.marker(point2, {draggable: true} ).addTo(map),
+	// 	    marker3 = L.marker(point3, {draggable: true} ).addTo(map);
+		    
+		
+	// 	var	bounds = new L.LatLngBounds(point1, point2).extend(point3);
+
+	// 	map.fitBounds(bounds);
+
+	// 	var overlay = L.imageOverlay.rotated("./palacio-de-el-pardo-821175.jpg", point1, point2, point3, {
+	// 		opacity: 0.4,
+	// 		interactive: true,
+	// 		attribution: "Historical building plan &copy; <a href='http://www.ign.es'>Instituto Geográfico Nacional de España</a>"
+	// 	});
+		
+// 		function repositionImage() {
+// 			overlay.reposition(marker1.getLatLng(), marker2.getLatLng(), marker3.getLatLng());
+// 		};
+		
+// 		marker1.on('drag dragend', repositionImage);
+// 		marker2.on('drag dragend', repositionImage);
+// 		marker3.on('drag dragend', repositionImage);
+		
+// // 		var c = overlay.getCanvas2DContext()
+		
+// 		map.addLayer(overlay);
+
+// 		overlay.on('dblclick',function (e) {
+// 			console.log('Double click on image.');
+// 			e.stop();
+// 		});
+
+// 		overlay.on('click',function (e) {
+// 			console.log('Click on image.');
+// 		});
+
+// 		function setOverlayOpacity(opacity) {
+// 			overlay.setOpacity(opacity);
+// 		}
+  </script>
+</body>
+</html>
+
+  </script>
+</body>
+</html>
+
+      //     fillOpacity: 0.8
+      //   }).addTo(map);
+      // });
+    // }
+
+
+
+    // var map = new L.Map('map');
+
+	// 	var positron = L.tileLayer('http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+	// 		attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="http://cartodb.com/attributions">CartoDB</a>',
+	// 		maxNativeZoom: 18,
+	// 		maxZoom:24
+	// 	}).addTo(map);
+    
+	// 	var point1 = L.latLng(40.52256691873593, -3.7743186950683594),
+	// 	    point2 = L.latLng(40.5210255066156, -3.7734764814376835),
+	// 	    point3 = L.latLng(40.52180437272552, -3.7768453359603886);
+		
+	// 	var marker1 = L.marker(point1, {draggable: true} ).addTo(map),
+	// 	    marker2 = L.marker(point2, {draggable: true} ).addTo(map),
+	// 	    marker3 = L.marker(point3, {draggable: true} ).addTo(map);
+		    
+		
+	// 	var	bounds = new L.LatLngBounds(point1, point2).extend(point3);
+
+	// 	map.fitBounds(bounds);
+
+	// 	var overlay = L.imageOverlay.rotated("./palacio-de-el-pardo-821175.jpg", point1, point2, point3, {
+	// 		opacity: 0.4,
+	// 		interactive: true,
+	// 		attribution: "Historical building plan &copy; <a href='http://www.ign.es'>Instituto Geográfico Nacional de España</a>"
+	// 	});
+		
+// 		function repositionImage() {
+// 			overlay.reposition(marker1.getLatLng(), marker2.getLatLng(), marker3.getLatLng());
+// 		};
+		
+// 		marker1.on('drag dragend', repositionImage);
+// 		marker2.on('drag dragend', repositionImage);
+// 		marker3.on('drag dragend', repositionImage);
+		
+// // 		var c = overlay.getCanvas2DContext()
+		
+// 		map.addLayer(overlay);
+
+// 		overlay.on('dblclick',function (e) {
+// 			console.log('Double click on image.');
+// 			e.stop();
+// 		});
+
+// 		overlay.on('click',function (e) {
+// 			console.log('Click on image.');
+// 		});
+
+// 		function setOverlayOpacity(opacity) {
+// 			overlay.setOpacity(opacity);
+// 		}
+  </script>
+</body>
+</html>
